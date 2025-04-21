@@ -8,11 +8,74 @@ import { Badge } from "@/components/ui/badge"
 import { Send, Bot, User, FileText, ArrowLeft, Database, Sparkles } from "lucide-react"
 import Link from "next/link"
 import { useChat } from "@ai-sdk/react"
+import { withErrorHandling } from "@/components/ErrorDisplay"
+import { useActiveContext, ErrorInfo } from "@/src/context/activeContext"
+import { API_ERROR_CODES, ERROR_CODES, ErrorCode } from "@/src/errors/errorCodes"
 
-export default function ChatPage() {
-  const { messages, input, handleInputChange, handleSubmit, isLoading, setInput } = useChat({
+// Helper function to safely get a valid error code
+function getValidErrorCode(code: string): ErrorCode {
+  // Check if the code exists in our defined error codes
+  if (Object.values(ERROR_CODES).includes(code as any)) {
+    return code as ErrorCode;
+  }
+  // Default fallback - use a known valid error code
+  return API_ERROR_CODES.INTERNAL_SERVICE_ERROR as ErrorCode;
+}
+
+function ChatPage() {
+  const { setLastError } = useActiveContext();
+  const { messages, input, handleInputChange, handleSubmit, isLoading, setInput, error } = useChat({
     api: "/api/chat",
   })
+  
+  // Handle API errors from useChat
+  useEffect(() => {
+    if (error) {
+      // Try to parse the error response to get the error details
+      try {
+        // The error might be a Response object or a string
+        if (error instanceof Response) {
+          error.json().then(data => {
+            if (data.code && data.message && data.info?.traceId) {
+              setLastError({
+                code: getValidErrorCode(data.code),
+                message: data.message,
+                traceId: data.info.traceId
+              });
+            } else {
+              // Fallback if the response doesn't match our expected format
+              setLastError({
+                code: getValidErrorCode('A-2999'),
+                message: 'An unexpected error occurred',
+                traceId: 'unknown'
+              });
+            }
+          }).catch(() => {
+            // If we can't parse the JSON, use a generic error
+            setLastError({
+              code: getValidErrorCode('A-2999'),
+              message: error.statusText || 'An unexpected error occurred',
+              traceId: 'unknown'
+            });
+          });
+        } else {
+          // Handle string or other error types
+          setLastError({
+            code: getValidErrorCode('A-2999'),
+            message: error.toString(),
+            traceId: 'unknown'
+          });
+        }
+      } catch (e) {
+        // Fallback for any parsing errors
+        setLastError({
+          code: getValidErrorCode('A-2999'),
+          message: 'An unexpected error occurred',
+          traceId: 'unknown'
+        });
+      }
+    }
+  }, [error, setLastError]);
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -120,6 +183,9 @@ export default function ChatPage() {
     </div>
   )
 }
+
+// Export the chat page with error handling
+export default withErrorHandling(ChatPage);
 
 interface SuggestedQuestionProps {
   question: string;

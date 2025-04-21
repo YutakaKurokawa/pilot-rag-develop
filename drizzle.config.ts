@@ -1,23 +1,15 @@
-import type { Config } from 'drizzle-kit';
-import * as dotenv from 'dotenv';
+// drizzle.config.ts
+import { defineConfig } from "drizzle-kit";
+import * as dotenv from "dotenv";
 
-// Load environment variables from .env.local
-dotenv.config({ path: '.env.local' });
+dotenv.config();                           // ← dotenv で .env を読む
 
-// Check if DATABASE_URL is defined
-if (!process.env.DATABASE_URL) {
-  throw new Error('DATABASE_URL is not defined in .env.local');
-}
-
-export default {
-  schema: './db/schema/*.ts',
-  out: './db/migrations',
-  driver: 'pg',
+export default defineConfig({
+  schema: "./src/schema",                  // 変更なし
+  out: "./sql",
+  dialect: "pg",                           // ★ 追加 ★
+  driver: "pg",                            // driver はあっても OK
   dbCredentials: {
-    connectionString: process.env.DATABASE_URL,
+    connectionString: process.env.DATABASE_URL!,
   },
-  // Use verbose logging during development
-  verbose: true,
-  // Enable strict mode to catch potential issues
-  strict: true,
-} satisfies Config;
+});

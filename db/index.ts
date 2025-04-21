@@ -1,3 +1,8 @@
+import { InfraError } from '@/src/errors/InfraError';
+
+// Get database timeout from environment variable or use default
+const DB_TIMEOUT_MS = parseInt(process.env.DB_TIMEOUT_MS || '3000', 10);
+
 // Export schema type definitions
 // Note: These are just TypeScript interfaces until Drizzle is installed
 export interface FaqData {
@@ -20,13 +25,24 @@ export interface FaqThreshold {
 // Mock database implementation for demonstration purposes
 // This will be replaced with a real database connection when packages are installed
 
-// Mock database connection
+// Mock database connection with timeout support
 export function createDb() {
-  return mockDb;
+  return {
+    ...mockDb,
+    timeout: DB_TIMEOUT_MS
+  };
+}
+
+// Define the database interface with timeout
+interface DbClient {
+  faqData: any[];
+  thresholdData: any[];
+  timeout?: number;
+  query(sql: string, params?: any[]): Promise<{ rows: any[] }>;
 }
 
 // Mock database with in-memory storage
-const mockDb = {
+const mockDb: DbClient = {
   // Mock FAQ data
   faqData: [
     {
@@ -62,41 +78,89 @@ const mockDb = {
     }
   ],
   
-  // Mock query method
+  // Mock query method with timeout support
   async query(sql: string, params: any[] = []) {
-    console.log('Mock DB Query:', sql, params);
-    
-    // Simple SQL parsing to handle different query types
-    if (sql.includes('SELECT * FROM faq_data')) {
-      if (sql.includes('WHERE')) {
-        // Handle search query
-        const searchTerm = params[0].replace(/%/g, '').toLowerCase();
-        const results = this.faqData.filter(item => 
-          item.question_text.toLowerCase().includes(searchTerm) || 
-          item.answer_text.toLowerCase().includes(searchTerm)
-        );
-        return { rows: results };
-      } else {
-        // Handle get all query
-        return { rows: this.faqData.slice(0, params[0] || 100) };
+    try {
+      console.log('Mock DB Query:', sql, params);
+  console.log(`DB Timeout: ${this.timeout !== undefined ? this.timeout : DB_TIMEOUT_MS}ms`);
+      
+      // Create a promise that resolves with the query result
+      const queryPromise = new Promise((resolve, reject) => {
+        // Simulate random database connection errors (1% chance)
+        if (Math.random() < 0.01) {
+          reject(new Error('Simulated database connection error'));
+          return;
+        }
+        
+        // Simulate query execution with random delay
+        const delay = Math.random() * 100; // Random delay up to 100ms
+        setTimeout(() => {
+          // Simple SQL parsing to handle different query types
+          if (sql.includes('SELECT * FROM faq_data')) {
+            if (sql.includes('WHERE')) {
+              // Handle search query
+              const searchTerm = params[0].replace(/%/g, '').toLowerCase();
+              const results = this.faqData.filter(item => 
+                item.question_text.toLowerCase().includes(searchTerm) || 
+                item.answer_text.toLowerCase().includes(searchTerm)
+              );
+              resolve({ rows: results });
+            } else {
+              // Handle get all query
+              resolve({ rows: this.faqData.slice(0, params[0] || 100) });
+            }
+          } else if (sql.includes('SELECT * FROM faq_threshold')) {
+            resolve({ rows: this.thresholdData });
+          } else if (sql.includes('INSERT INTO faq_data')) {
+            // Handle insert query
+            const newId = this.faqData.length > 0 ? Math.max(...this.faqData.map(item => item.id)) + 1 : 1;
+            const newItem = {
+              id: newId,
+              question_text: params[0],
+              answer_text: params[1],
+              category: params[2],
+              created_at: new Date()
+            };
+            this.faqData.push(newItem);
+            resolve({ rows: [{ id: newId }] });
+          } else {
+            resolve({ rows: [] });
+          }
+        }, delay);
+      });
+      
+      // Create a timeout promise
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => {
+          reject(new Error(`Database query timed out after ${this.timeout !== undefined ? this.timeout : DB_TIMEOUT_MS}ms`));
+        }, this.timeout !== undefined ? this.timeout : DB_TIMEOUT_MS);
+      });
+      
+      // Race the query against the timeout
+      return await Promise.race([queryPromise, timeoutPromise]) as { rows: any[] };
+      
+    } catch (error) {
+      // Convert database errors to InfraError
+      if (error instanceof Error) {
+        if (error.message.includes('timed out')) {
+          throw InfraError.dbConnectionExhausted(
+            `データベースクエリがタイムアウトしました (${this.timeout !== undefined ? this.timeout : DB_TIMEOUT_MS}ms)`,
+            error
+          );
+        } else if (error.message.includes('connection')) {
+          throw InfraError.dbConnectionExhausted(
+            'データベース接続エラーが発生しました',
+            error
+          );
+        } else {
+          throw InfraError.dbQueryFailed(
+            'データベースクエリの実行中にエラーが発生しました',
+            error
+          );
+        }
       }
-    } else if (sql.includes('SELECT * FROM faq_threshold')) {
-      return { rows: this.thresholdData };
-    } else if (sql.includes('INSERT INTO faq_data')) {
-      // Handle insert query
-      const newId = this.faqData.length > 0 ? Math.max(...this.faqData.map(item => item.id)) + 1 : 1;
-      const newItem = {
-        id: newId,
-        question_text: params[0],
-        answer_text: params[1],
-        category: params[2],
-        created_at: new Date()
-      };
-      this.faqData.push(newItem);
-      return { rows: [{ id: newId }] };
+      throw error;
     }
-    
-    return { rows: [] };
   }
 };
 
