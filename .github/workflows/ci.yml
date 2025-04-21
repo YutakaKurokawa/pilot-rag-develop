@@ -39,7 +39,9 @@ jobs:
         
       # ESLint によるコード品質チェック
       - name: Lint
-        run: pnpm run lint
+        run: |
+          pnpm install --save-dev eslint eslint-config-next
+          pnpm run lint
 
       # ユニットテスト実行
       - name: Run unit tests
