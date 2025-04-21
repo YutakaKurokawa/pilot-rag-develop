@@ -22,10 +22,37 @@ jobs:
         with:
           node-version: 18
 
-      # 依存パッケージをインストール (package-lock.json ある場合は npm ci 推奨)
+      # pnpm のセットアップ
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+          run_install: false
+
+      # 依存パッケージをインストール (pnpm を使用)
       - name: Install dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
+        
+      # TypeScript の型チェック
+      - name: Type check
+        run: pnpm run tsc:api
+        
+      # ESLint によるコード品質チェック
+      - name: Lint
+        run: pnpm run lint
+
+      # ユニットテスト実行
+      - name: Run unit tests
+        run: pnpm run test -- tests/unit/
 
       # テスト＆カバレッジ実行
       - name: Run tests with coverage
-        run: npm run coverage
+        run: pnpm run coverage
+
+      # カバレッジレポートのアップロード
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          directory: ./coverage/
+          fail_ci_if_error: true
