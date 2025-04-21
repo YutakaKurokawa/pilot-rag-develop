@@ -1,15 +1,16 @@
 "use client"
 
-import { useRef, useEffect } from "react"
+import { useRef, useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card } from "@/components/ui/card"
-import { Send, Bot, User, FileText, ArrowLeft } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { Send, Bot, User, FileText, ArrowLeft, Database, Sparkles } from "lucide-react"
 import Link from "next/link"
 import { useChat } from "@ai-sdk/react"
 
 export default function ChatPage() {
-  const { messages, input, handleInputChange, handleSubmit, isLoading } = useChat({
+  const { messages, input, handleInputChange, handleSubmit, isLoading, setInput } = useChat({
     api: "/api/chat",
   })
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -19,6 +20,18 @@ export default function ChatPage() {
       messagesEndRef.current.scrollIntoView({ behavior: "smooth" })
     }
   }, [messages])
+  
+  const handleSuggestedQuestion = (question: string) => {
+    setInput(question);
+    // Use setTimeout to ensure the input is set before submitting
+    setTimeout(() => {
+      const form = document.querySelector('form');
+      if (form) {
+        const submitEvent = new Event('submit', { cancelable: true, bubbles: true });
+        form.dispatchEvent(submitEvent);
+      }
+    }, 100);
+  };
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -41,10 +54,10 @@ export default function ChatPage() {
                 24時間対応のAIアシスタントです。製品やサービスに関するご質問にお答えします。
               </p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 w-full max-w-lg">
-                <SuggestedQuestion question="製品の使い方を教えてください" />
-                <SuggestedQuestion question="料金プランについて知りたいです" />
-                <SuggestedQuestion question="アカウント設定の変更方法は？" />
-                <SuggestedQuestion question="最新のアップデート情報を教えて" />
+                <SuggestedQuestion question="製品の使い方を教えてください" onSelect={handleSuggestedQuestion} />
+                <SuggestedQuestion question="料金プランについて知りたいです" onSelect={handleSuggestedQuestion} />
+                <SuggestedQuestion question="アカウント設定の変更方法は？" onSelect={handleSuggestedQuestion} />
+                <SuggestedQuestion question="最新のアップデート情報を教えて" onSelect={handleSuggestedQuestion} />
               </div>
             </div>
           ) : (
@@ -63,12 +76,23 @@ export default function ChatPage() {
                     </div>
                     <div>
                       <div className="whitespace-pre-wrap">{message.content}</div>
-                      {message.role === "assistant" && index > 0 && index % 2 === 0 && (
+                      {message.role === "assistant" && (
                         <div className="mt-2 flex items-center text-xs text-gray-500">
-                          <FileText className="h-3 w-3 mr-1" />
-                          <a href="#" className="underline">
-                            参照ドキュメント
-                          </a>
+                          {message.content.includes("FAQ回答") ? (
+                            <>
+                              <Badge variant="outline" className="flex items-center gap-1 px-2 py-0.5 text-xs">
+                                <Database className="h-3 w-3" />
+                                FAQ
+                              </Badge>
+                            </>
+                          ) : (
+                            <>
+                              <Badge variant="outline" className="flex items-center gap-1 px-2 py-0.5 text-xs">
+                                <Sparkles className="h-3 w-3" />
+                                AI
+                              </Badge>
+                            </>
+                          )}
                         </div>
                       )}
                     </div>
@@ -97,10 +121,19 @@ export default function ChatPage() {
   )
 }
 
-function SuggestedQuestion({ question }) {
+interface SuggestedQuestionProps {
+  question: string;
+  onSelect: (question: string) => void;
+}
+
+function SuggestedQuestion({ question, onSelect }: SuggestedQuestionProps) {
   return (
-    <Button variant="outline" className="justify-start h-auto py-2 px-3 text-left">
+    <Button 
+      variant="outline" 
+      className="justify-start h-auto py-2 px-3 text-left"
+      onClick={() => onSelect(question)}
+    >
       {question}
     </Button>
-  )
+  );
 }
