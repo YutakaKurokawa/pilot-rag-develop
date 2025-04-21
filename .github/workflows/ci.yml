@@ -1,0 +1,31 @@
+name: Test and Coverage
+
+# main ブランチへの push と PR 作成・更新時にワークフローを起動する例
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  test-and-coverage:
+    runs-on: ubuntu-latest
+
+    steps:
+      # リポジトリのソースコードをチェックアウト
+      - name: Check out repository
+        uses: actions/checkout@v3
+
+      # Node.js のバージョン設定
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      # 依存パッケージをインストール (package-lock.json ある場合は npm ci 推奨)
+      - name: Install dependencies
+        run: npm ci
+
+      # テスト＆カバレッジ実行
+      - name: Run tests with coverage
+        run: npm run coverage
