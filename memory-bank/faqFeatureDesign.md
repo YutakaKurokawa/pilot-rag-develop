@@ -27,17 +27,27 @@
 
 ---
 ## 4. データモデル (faq_data)
-| 列名 | 型 | 説明 |
-|------|----|------|
-| id | SERIAL PK | FAQ識別子 |
-| question_text | TEXT | 質問文 |
-| answer_text | TEXT | 回答文 |
-| category | VARCHAR(40) | 任意カテゴリ |
-| embedding | VECTOR(768) | 将来の類似検索用 |
-| ts | TSVECTOR | 全文検索用生成列 |
-| created_at | TIMESTAMPTZ | 登録日時 |
+| 列名 | 型 | 説明 | Drizzle定義 |
+|------|----|------|------------|
+| id | SERIAL PK | FAQ識別子 | `serial("id").primaryKey()` |
+| question_text | TEXT | 質問文 | `text("question_text").notNull()` |
+| answer_text | TEXT | 回答文 | `text("answer_text").notNull()` |
+| category | VARCHAR(40) | 任意カテゴリ | `varchar("category", { length: 40 })` |
+| embedding | VECTOR(768) | 将来の類似検索用 | `pgvector.vector("embedding", 768)` |
+| ts | TSVECTOR | 全文検索用生成列 | `tsvector("ts").generatedAlwaysAs('to_tsvector(\'japanese\', question_text || \' \' || answer_text)')` |
+| created_at | TIMESTAMPTZ | 登録日時 | `timestamp("created_at", { withTimezone: true }).defaultNow()` |
 
-インデックス: `GIN(ts)` を必須。embedding 用 ivfflat / HNSW は拡張フェーズで追加。
+インデックス: 
+- `GIN(ts)` を必須: `gin("ts")` 
+- embedding 用 ivfflat / HNSW は拡張フェーズで追加
+
+### 4.1 閾値設定テーブル (faq_threshold)
+| 列名 | 型 | 説明 | Drizzle定義 |
+|------|----|------|------------|
+| id | SERIAL PK | 設定識別子 | `serial("id").primaryKey()` |
+| threshold_value | FLOAT | 検索スコア閾値 | `real("threshold_value").notNull().default(0.4)` |
+| updated_at | TIMESTAMPTZ | 更新日時 | `timestamp("updated_at", { withTimezone: true }).defaultNow()` |
+| updated_by | VARCHAR(100) | 更新者 | `varchar("updated_by", { length: 100 })` |
 
 ---
 ## 5. 検索 & フォールバック設計

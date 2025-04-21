@@ -1,0 +1,20 @@
+name: DB Migrations
+
+on:
+  push:
+    branches: ["main"]
+    paths: ["src/schema/**", "sql/**", ".github/workflows/db.yml"]
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v2
+        with: { version: 9 }
+      - run: pnpm install --frozen-lockfile
+
+      - name: Push migrations
+        run: pnpm drizzle-kit push
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
